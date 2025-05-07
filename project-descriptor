@@ -1,8 +1,8 @@
-- title: 'Baby's first ML project'
+- title: 'A project to identify eggs'
   image: /assets/img/blocks/code-med.jpg
   description:
-    - Descroption here ... etc.
-    - Next paragraph... stuff
+    - Uses machine learning to identify eggs
+    - Trains from resnet model 
   author:
     - Stephen Mander
     - or you? 

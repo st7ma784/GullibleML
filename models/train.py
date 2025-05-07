@@ -1,65 +1,56 @@
-
-
 from pytorch_lightning import LightningModule
 import torch.nn as nn
 import torch
-from functools import partial
+from torchvision.models import resnet18
 from typing import Optional
-from warnings import warn
 
 class myLightningModule(LightningModule):
     '''
-    This training code follows the standard structure of Pytorch - lighthning. It's worth looking at their docs for a more in depth dive as to why it is this was
+    This training code follows the standard structure of Pytorch Lightning. It's worth looking at their docs for a more in-depth dive as to why it is structured this way.
     '''
     
     def __init__(self,
-                learning_rate,
+                learning_rate=1e-3,
                 total_steps: int = 200000,
-                train_batch_size: int = 64,
-                eval_batch_size: int = 32,
-                eval_splits: Optional[list] = None,
-                context_length= 77,
+                train_batch_size: int = 64,              
                 **kwargs,
                 ):
 
         super().__init__()
         self.save_hyperparameters()
-        self.loss=torch.nn.CrossEntropyLoss()
-        #Define your own model here, 
-        self.model=torch.nn.Sequential(*[
-            torch.nn.Linear(5000,512),
-            torch.nn.Linear(512,256),
-            torch.nn.Linear(256,512),
-            torch.nn.Linear(512,4000)
+        self.loss = nn.CrossEntropyLoss()
+        # Define the ResNet backbone
+        self.backbone = resnet18(pretrained=True)
+        num_features = self.backbone.fc.in_features
 
-        ])
-    def forward(self,input):
-        #This inference steps of a foward pass of the model 
-        return self.model(input)
+        # Replace the fully connected layer with a custom classification head
+        self.backbone.fc = nn.Linear(num_features, 4)  # 4 classes for multi-class classification
 
-    def training_step(self, batch, batch_idx,optimizer_idx=0):
-        #The batch is collated for you, so just seperate it here and calculate loss. 
-        #By default, PTL handles optimization and scheduling and logging steps. so All you have to focus on is functionality. Here's an example...
-        input,target=batch[0],batch[1]
-        out=self.forward(input)
-        loss=self.loss(out,target)
-        
-        #Logging is done through this module as follows.
+    def forward(self, input):
+        # Forward pass through the ResNet model
+        return self.backbone(input)
+
+    def training_step(self, batch, batch_idx, optimizer_idx=0):
+        # Separate the batch into input and target
+        input, target = batch[0], batch[1]
+        out = self.forward(input)
+        loss = self.loss(out, target)
+        # Log the training loss
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
       
-      
     def validation_step(self, batch, batch_idx):
-      
-        input,desired=batch[0],batch[1]
-        out=self.forward(input)
-        #You could log here the val_loss, or just print something. 
-        
+        # Separate the batch into input and target
+        input, target = batch[0], batch[1]
+        out = self.forward(input)
+        loss = self.loss(out, target)
+        # Log the validation loss
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
     def configure_optimizers(self):
-        #Automatically called by PL. So don't worry about calling it yourself. 
-        #you'll notice that everything from the init function is stored under the self.hparams object 
-        optimizerA = torch.optim.Adam(
+        # Define the optimizer
+        optimizer = torch.optim.Adam(
             self.parameters(), lr=self.hparams.learning_rate, eps=1e-8)
-        
-        #Define scheduler here too if needed. 
-        return [optimizerA]
+        # Define scheduler here if needed
+        return [optimizer]
